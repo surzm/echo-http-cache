@@ -120,6 +120,8 @@ func (client *Client) Middleware() echo.MiddlewareFunc {
 				next(c)
 				return nil
 			}
+			origin := c.Request().Header.Get("Origin")
+
 			if client.cacheableMethod(c.Request().Method) {
 				sortURLParams(c.Request().URL)
 				key := generateKey(c.Request().URL.String())
@@ -152,10 +154,20 @@ func (client *Client) Middleware() echo.MiddlewareFunc {
 							response.Frequency++
 							client.adapter.Set(key, response.Bytes(), response.Expiration)
 
+							if c.Request().Method == http.MethodOptions {
+								return nil
+							}
 							//w.WriteHeader(http.StatusNotModified)
 							for k, v := range response.Header {
 								c.Response().Header().Set(k, strings.Join(v, ","))
 							}
+
+							// update CORS
+							c.Response().Header().Set("Access-Control-Allow-Origin", origin)
+							c.Response().Header().Set("Access-Control-Allow-Credentials", "true")
+							c.Response().Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
+							c.Response().Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, x-compress")
+
 							c.Response().WriteHeader(http.StatusOK)
 							c.Response().Write(response.Value)
 							return nil
